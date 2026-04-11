@@ -8,6 +8,7 @@ endpoint — no SMTP, no sending, no "Sent" folder.
 For the moment it works for exactly one email message in mbox format which is
 perfectly adequate for the purpose of being a program that procmail can pipe
 messages into to deliver to gmail.
+
 ---
 
 ## Quick start
@@ -35,7 +36,7 @@ python3 gmail_insert.py < message.mbox | jq .
 
 ---
 
-## mbox format primer
+## Basics of mbox format
 
 An mbox file is plain text. Each message is preceded by a **"From " envelope
 line** (note the space after "From"):
@@ -101,11 +102,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-OR if you are on a server which doesn't provide you with the abilty to install
-python (or python venv) then you can 
+If you are on a server which doesn't provide you with the abilty to install
+python (or python venv) then you can install miniconda and do something like
+this:
 
+'''bash
+conda config --add channels conda-forge
 conda create --file gmail_insert/requirements.txt -n genv
-/path/to/miniconda3/bin/conda run -n genv gmail_insert.py < mail.mbx
+/path/to/miniconda3/bin/conda run -n genv --no-capture-output gmail_insert.py --debug < mail.mbx
+'''
 
 ### Enable the Gmail API & create credentials
 
@@ -118,6 +123,11 @@ conda create --file gmail_insert/requirements.txt -n genv
    (required while the app is in *Testing* mode).
 7. You can channge from testing to production and still won't need to go
    through app verification as long as there are fewer than 100 users ever.
+
+If you are sending to different gmail accounts you can use --user with an
+integer (the default is 0) to designate each user.  You will need to
+authenticate each one to create a token file for that account.  Only the one
+credential file is needed.
 
 ---
 
