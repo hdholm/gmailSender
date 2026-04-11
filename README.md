@@ -17,14 +17,8 @@ messages into to deliver to gmail.
 # Single message
 python3 gmail_insert.py < message.mbox
 
-# Whole mbox archive (inserts every message)
+# Whole mbox archive (inserts every message) - TBD implementation
 cat archive.mbox | python3 gmail_insert.py
-
-# Custom labels
-python3 gmail_insert.py --labels INBOX UNREAD IMPORTANT < message.mbox
-
-# Preview without inserting
-python3 gmail_insert.py --dry-run < message.mbox
 
 # Pipe JSON results to jq
 python3 gmail_insert.py < message.mbox | jq .
