@@ -1,7 +1,7 @@
 # Push email to Gmail using Import API
 
-Eventually read one or more email messages in **mbox format from standard input** and
-inserts each one directly into a Gmail mailbox via the
+Eventually read one or more email messages in **mbox format from standard
+input** and inserts each one directly into a Gmail mailbox via the
 [Gmail API `messages.import`](https://developers.google.com/gmail/api/reference/rest/v1/users.messages/import)
 endpoint — no SMTP, no sending, no "Sent" folder.
 
@@ -114,15 +114,17 @@ conda create --file gmail_insert/requirements.txt -n genv
 
 ### Enable the Gmail API & create credentials
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create (or select) a project.
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create
+   (or select) a project.
 2. **APIs & Services → Library** — enable **Gmail API**.
 3. **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**.
 4. Application type: **Desktop App**.
-5. Download the JSON and save it as **`credentials.json`** in the same directory as the script.
-6. **APIs & Services → OAuth consent screen → Test users** — add your Gmail address
-   (required while the app is in *Testing* mode).
+5. Download the JSON and save it as **`credentials.json`** in the same
+   directory as the script.
+6. **APIs & Services → OAuth consent screen → Test users** — add your Gmail
+   address (required if/while the app is in *Testing* mode).
 7. You can channge from testing to production and still won't need to go
-   through app verification as long as there are fewer than 100 users ever.
+   through app verification as long as there are fewer than 100 users **ever**.
 
 If you are sending to different gmail accounts you can use `--user` with an
 integer (the default is 0) to designate each user.  You will need to
@@ -134,7 +136,7 @@ credential file is needed.
 ## Output design
 
 Diagnostic/status lines go to **stderr**; a JSON array of results goes to
-**stdout**, so you can pipe cleanly if, and only if, --debug is used:
+**stdout**, so you can pipe cleanly if, and only if, `--debug` is used:
 
 ```bash
 python3 gmail_insert.py --debug < archive.mbox | jq '.[].id'
@@ -169,7 +171,7 @@ Error entry:
 |---|---|
 | `gmail_insert.py` | Main script |
 | `credentials.json` | OAuth client secret — **download from GCP, never commit** |
-| `token_USERID.json` | Cached auth token — auto-created on first run USERID is just an integer digit used to identify unique gmail accounts |
+| `token_USERID.json` | Cached auth token — auto-created on first run. USERID is just an integer digit used to identify unique gmail accounts |
 | `requirements.txt` | Python dependencies |
 | `.gitignore` | Excludes credentials and token from version control |
 
@@ -190,8 +192,10 @@ Error entry:
 
 ## Security notes
 
-- **Never commit** `credentials.json` or `token*.json` — each should be covered by `.gitignore`.
-- The `gmail.insert` scope is write-only; the script cannot read or delete existing mail.
+- **Never commit** `credentials.json` or `token*.json` — each should be 
+  covered by `.gitignore`.
+- The `gmail.insert` scope is write-only; the script cannot read or delete
+  existing mail.
 
 ## Background
 
@@ -203,18 +207,18 @@ wanted) research I came up with this.
 
 ### Credits
 
-- While seaching for a way to send email to Google, I found Jeremy Ephron
-  Barenholtz's github repository at
-  https://github.com/jeremyephron/simplegmail/tree/master which provided
-  some insight into the API and the genesis of the idea.
-- Anthropic's Claude AI provided two proof of concept attempts that were
-  close to functional and provided more insight into the operation of the
+- While seaching for a way to send email to Google, I found **Jeremy Ephron
+  Barenholtz**'s github repository at
+  https://github.com/jeremyephron/simplegmail which provided
+  some insight into the gmail API and the genesis of this idea.
+- **Anthropic's Claude AI** provided two proof of concept attempts that were
+  close to functional and provided even more insight into the operation of the
   gmail API.
-- My first attempts failed on utf-8 messages and Dieter Maurer's bug fix at
-  https://github.com/python/cpython/issues/85479 showed me the way forward
+- My first attempts failed with utf-8 messages and **Dieter Maurer**'s bug fix
+  at https://github.com/python/cpython/issues/85479 showed me the way forward.
 - Claude attempted to build a version (still on the horizon) that took both
   single messages and multiple message mboxs on standard input.  Unfortunately,
   it did that by using python 2's PortableUnixMailbox. But Python 3's mbox uses
-  a pathname not a file-like-object. Enrico Zini may have pointed the way
+  a pathname not a file-like-object. **Enrico Zini** seems to have a way
   forward in this blog:
   https://www.enricozini.org/blog/2019/debian/python-hacks-opening-a-compressed-mailbox/
