@@ -106,11 +106,11 @@ If you are on a server which doesn't provide you with the abilty to install
 python (or python venv) then you can install miniconda and do something like
 this:
 
-'''bash
+```bash
 conda config --add channels conda-forge
 conda create --file gmail_insert/requirements.txt -n genv
 /path/to/miniconda3/bin/conda run -n genv --no-capture-output gmail_insert.py --debug < mail.mbx
-'''
+```
 
 ### Enable the Gmail API & create credentials
 
@@ -124,7 +124,7 @@ conda create --file gmail_insert/requirements.txt -n genv
 7. You can channge from testing to production and still won't need to go
    through app verification as long as there are fewer than 100 users ever.
 
-If you are sending to different gmail accounts you can use --user with an
+If you are sending to different gmail accounts you can use `--user` with an
 integer (the default is 0) to designate each user.  You will need to
 authenticate each one to create a token file for that account.  Only the one
 credential file is needed.
@@ -169,8 +169,7 @@ Error entry:
 |---|---|
 | `gmail_insert.py` | Main script |
 | `credentials.json` | OAuth client secret — **download from GCP, never commit** |
-| `token_USERID.json` | Cached auth token — auto-created on first run |
-|  | USERID is just an integer digit used to identify unique gmail accounts |
+| `token_USERID.json` | Cached auth token — auto-created on first run USERID is just an integer digit used to identify unique gmail accounts |
 | `requirements.txt` | Python dependencies |
 | `.gitignore` | Excludes credentials and token from version control |
 
@@ -179,7 +178,7 @@ Error entry:
 ## How `messages.import` differs from `messages.insert` and `messages.send`
 
 | | `import` | `insert` | `send` |
-|---|---|---|
+|---|---|---|---|
 | Delivers to recipients? | No | No | Yes |
 | Appears in Sent? | No | No | Yes |
 | Arbitrary labels? | Some | Yes | Limited |
