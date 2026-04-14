@@ -207,11 +207,11 @@ wanted) research I came up with this.
   some insight into the gmail API and the genesis of this idea.
 - **Anthropic's Claude AI** provided two proof of concept attempts that were
   close to functional and provided even more insight into the operation of the
-  gmail API.
-- My first attempts failed with utf-8 messages and **Dieter Maurer**'s bug fix
-  at https://github.com/python/cpython/issues/85479 showed me the way forward.
+  gmail API, but were broken in various ways.  Claude was also used to update
+  to help update to the more modern EmailMessage class in python which fixed
+  a number of the bugs in the previous Claude versions.
 - Claude attempted to build a version (still on the horizon) that took both
-  single messages and multiple message mboxs on standard input.  Unfortunately,
+  single messages and multiple message mboxen on standard input.  Unfortunately,
   it did that by using python 2's PortableUnixMailbox. But Python 3's mbox uses
   a pathname not a file-like-object. **Enrico Zini** seems to have a way
   forward in this blog:

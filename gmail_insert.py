@@ -35,25 +35,20 @@ Setup:
 import argparse
 import base64
 import email
-import io
+import email.policy
 import json
 import logging
-import mailbox
 import os
 import sys
+
+from email import message_from_bytes
+from email.message import EmailMessage
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
-# Needed to account for  https://github.com/python/cpython/issues/85479
-from copy import copy
-from io import BytesIO
-from email.message import Message
-from email.generator import BytesGenerator, _has_surrogates
-from email._policybase import Compat32
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -68,10 +63,10 @@ log = logging.getLogger(__name__)
 # Auth
 # ---------------------------------------------------------------------------
 
-def get_gmail_service(cred_id:str):
+def get_gmail_service(cred_id: str):
     """Authenticate and return an authorised Gmail API service object."""
-    creds            = None
-    token_file       = "token_" + cred_id + ".json"
+    creds      = None
+    token_file = "token_" + cred_id + ".json"
 
     if os.path.exists(token_file):
         creds = Credentials.from_authorized_user_file(token_file, SCOPES)
@@ -99,112 +94,36 @@ def get_gmail_service(cred_id:str):
 # mbox parsing
 # ---------------------------------------------------------------------------
 
-#This is a mess because the email module in python is a mess see:
-#    https://github.com/python/cpython/issues/85479
-#and
-#    email.mbox only takes a file PATH not a file handle,
-#    https://www.enricozini.org/tags/hacks/
-#
-class StreamMbox(mailbox.mbox):
+def parse_mbox_from_stdin() -> list[EmailMessage]:
     """
-    mailbox.mbox does not support opening a stream, which is sad.
+    Read mbox data from stdin and return a list of EmailMessage objects.
 
-    This is a subclass that works around it
-    """
-    def __init__(self, fd: BinaryIO, factory=None, create: bool = True):
-        # Do not call parent __init__, just redo everything here to be able to
-        # open a stream. This will need to be re-reviewed for every new version
-        # of python's stdlib.
+    Uses email.policy.default so the result is a modern EmailMessage rather
+    than the legacy Message class.  UTF-8 bodies and headers are handled
+    correctly without any monkey-patching.
 
-        # Mailbox constructor
-        self._path = None
-        self._factory = factory
-
-        # _singlefileMailbox constructor
-        self._file = fd
-        self._toc = None
-        self._next_key = 0
-        self._pending = False       # No changes require rewriting the file.
-        self._pending_sync = False  # No need to sync the file
-        self._locked = False
-        self._file_length = None    # Used to record mailbox size
-
-        # mbox constructor
-        self._message_factory = mailbox.mboxMessage
-
-    def flush(self):
-        raise NotImplementedError("The mbox is readonly.")
-
-class FixedBytesGenerator(BytesGenerator):
-    '''Modify broken built-in BytesGenerator to account for utf-8 messages.'''
-    def _handle_text(self, msg):
-        payload = msg._payload
-        if payload is None:
-            return
-        charset = msg.get_param("charset")
-        if charset is not None \
-               and not self.policy.cte_type=='7bit' \
-               and not _has_surrogates(payload):
-            msg = copy(msg)
-            msg._payload = payload.encode(charset).decode(
-                "ascii", "surrogateescape")
-        super()._handle_text(msg)
-                
-    _writeBody = _handle_text
-
-
-class FixedMessage(Message):
-    '''Modify built-in Message class to use FixedBytesGenerator.'''
-    def as_bytes(self, unixfrom=False, policy=None):
-        policy = self.policy if policy is None else policy
-        fp = BytesIO()
-        g = FixedBytesGenerator(fp, mangle_from_=False, policy=policy)
-        g.flatten(self, unixfrom=unixfrom)
-        return fp.getvalue()
-
-# A policy to use the corrected classes above to deal with utf-8 messages
-fixed_policy = Compat32(message_factory=FixedMessage)
-
-def parse_mbox_from_stdin() -> list:
-    """
-    Read mbox data from stdin and return a list of email.message.Message objects.
-
-    Handles two cases:
-      1. Proper mbox with one or more "From " separator lines.
+    Eventually handle two cases:
+      1. Proper mbox with one or more "From " separator lines. (Still TBD.)
       2. A bare RFC-2822 message with no "From " line (single message).
     """
-    raw     = sys.stdin.buffer.read()
-    decoded = raw.decode("utf-8", errors="replace")
+    raw = sys.stdin.buffer.read()
 
-    # If there is no mbox "From " envelope line, treat the whole input as a
-    # single RFC-2822 message.
-    #if not decoded.startswith("From "):
-    #    return [email.message_from_string(decoded)]
-    # Removed check becuase procmail pipes single mbox formatted messages
-    return [email.message_from_string(decoded, policy=fixed_policy)]
-    # Parse as a proper mbox stream using the stdlib mailbox module.
-    # PortableUnixMailbox accepts a file-like object directly.
-    #mbox = StreamMbox(
-    #    io.StringIO(decoded),
-    #    factory=email.message_from_file,
-    #)
-    #return list(mbox)
-    log.error("[ERROR] multiple message mbox TBD.")
+    msg = message_from_bytes(raw, policy=email.policy.default)
+    return [msg]
 
 # ---------------------------------------------------------------------------
 # Gmail insert (using the import API to get scanning and classification)
 # ---------------------------------------------------------------------------
 
-def message_to_raw(msg) -> str:
-    """Base64url-encode an email.message.Message for the Gmail API."""
+def message_to_raw(msg: EmailMessage) -> str:
+    """Base64url-encode an EmailMessage for the Gmail API. """
     return base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
 
-def insert_message(service, msg) -> dict:
+def insert_message(service, msg: EmailMessage) -> dict:
     """Insert a single message into the authenticated user's mailbox."""
     body = {
         "raw":      message_to_raw(msg),
-        "labelIds": ['INBOX', 'UNREAD'],
-
+        "labelIds": ["INBOX", "UNREAD"],
     }
     return (
         service.users()
@@ -228,7 +147,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   python3 gmail_insert.py < message.mbox
-  cat archive.mbox | python3 gmail_insert.py 
+  cat archive.mbox | python3 gmail_insert.py
   python3 gmail_insert.py --debug --user 2 < message.mbox
   python3 gmail_insert.py --debug < message.mbox | jq .
         """,
@@ -268,7 +187,7 @@ def main():
     # All status/diagnostic output goes to stderr so stdout stays clean JSON
     # (useful for piping: python3 gmail_insert.py < msg.mbox | jq .)
 
-    # --5- Read stdin ---------------------------------------------------------
+    # --- Read stdin ---------------------------------------------------------
     if sys.stdin.isatty():
         log.error("[ERROR] No input detected. Pipe an mbox file into this script.")
         log.error("  Example: python3 gmail_insert.py < message.mbox")
@@ -291,20 +210,16 @@ def main():
     log.info("")
 
     # --- Authenticate -------------------------------------------------------
-    service  = get_gmail_service(str(args.user))
+    service = get_gmail_service(str(args.user))
 
     # --- Insert each message ------------------------------------------------
     results  = []
     inserted = 0
 
     for i, msg in enumerate(messages, start=1):
-        # emsg = email.message_from_string(msg)
         subject = msg.get("Subject", "(no subject)")
         try:
-            result = insert_message(
-                service,
-                msg
-            )
+            result = insert_message(service, msg)
             inserted += 1
             results.append({"status": "ok", **result})
             log.info(f"[OK] Message {i} inserted")
@@ -315,7 +230,7 @@ def main():
             log.error(f"[ERROR] Message {i} failed: {exc}")
             log.info("")
 
-    #---- Summary ------------------------------------------------------------
+    # --- Summary ------------------------------------------------------------
     log.info(f"[DONE] Inserted {inserted} of {len(messages)} message(s).")
     if inserted:
         log.info("       Open Gmail in your browser to see them.")
