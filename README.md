@@ -82,7 +82,10 @@ python3 gmail_insert.py < test.mbox
 
 ## Prerequisites
 
-### Python 3.10+
+### Python 3.13+
+
+Testing with Python 3.10 causes a traceback that is not present in 3.13 when
+parsing some email headers - notibly some originating from Microsoft.
 
 ```bash
 python3 --version
