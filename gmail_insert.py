@@ -212,10 +212,10 @@ def get_gmail_service(cred_id: str, *, interactive: bool = False,
             with open(token_file, "w") as fh:
                 fh.write(creds.to_json())
             os.chmod(token_file, 0o600)
-            log.info(f"[AUTH] Token saved to {token_file}")
+            log.info("[AUTH] Token saved to %s", token_file)
         except OSError as exc:
             # Not fatal: the in-memory credentials still work for this run.
-            log.warning(f"[WARN] Could not write {token_file}: {exc}")
+            log.warning("[WARN] Could not write %s: %s", token_file, exc)
 
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
@@ -268,7 +268,7 @@ def describe(raw: bytes) -> dict:
             "message-id": str(msg.get("Message-ID", "")),
         }
     except Exception as exc:                 # malformed mail must still deliver
-        log.warning(f"[WARN] Could not parse headers: {exc}")
+        log.warning("[WARN] Could not parse headers: %s", exc)
         return {"from": "(unparsed)", "subject": "(unparsed)",
                 "date": "", "message-id": ""}
 
@@ -367,7 +367,8 @@ def insert_with_retry(service, raw: bytes, *,
             if not is_retryable(exc):
                 raise
             if attempt >= max_attempts:
-                log.error(f"[RETRY] Giving up after {attempt} attempt(s): {exc}")
+                log.error("[RETRY] Giving up after %d attempt(s): %s",
+                          attempt, exc)
                 raise
 
             backoff = min(max_backoff, initial_backoff * (2 ** (attempt - 1)))
@@ -377,12 +378,13 @@ def insert_with_retry(service, raw: bytes, *,
                 delay = max(delay, min(hinted, max_backoff))
 
             if monotonic() - started + delay > deadline:
-                log.error(f"[RETRY] Retry deadline ({deadline}s) reached: {exc}")
+                log.error("[RETRY] Retry deadline (%ds) reached: %s",
+                          deadline, exc)
                 raise
 
             log.warning(
-                f"[RETRY] Attempt {attempt}/{max_attempts} failed "
-                f"({_short(exc)}); retrying in {delay:.1f}s"
+                "[RETRY] Attempt %d/%d failed (%s); retrying in %.1fs",
+                attempt, max_attempts, _short(exc), delay
             )
             sleep(delay)
 
@@ -501,7 +503,8 @@ def _write_sidecar(path: Path, data: dict) -> None:
         tmp.write_text(json.dumps(data, indent=2))
         os.replace(tmp, _sidecar(path))
     except OSError as exc:
-        log.warning(f"[WARN] Could not write spool metadata for {path}: {exc}")
+        log.warning("[WARN] Could not write spool metadata for %s: %s",
+                    path, exc)
 
 
 def _read_sidecar(path: Path) -> dict:
@@ -691,17 +694,16 @@ def cmd_auth(args) -> int:
     try:
         connect(args, user_id, interactive=True)
     except AuthUnavailable as exc:
-        log.error(f"[ERROR] {exc}")
+        log.error("[ERROR] %s", exc)
         return 1
-    log.warning(f"[AUTH] Authorisation complete for user {user_id}.")
+    log.warning("[AUTH] Authorisation complete for user %d.", user_id)
     return 0
 
 
 def collect_spool(root: Path, only_user: int | None = None):
     """
     Group spooled messages by destination user, oldest first within each.
-
-    Returns (by_user, orphans).  Orphans are files whose user ID cannot be
+Returns (by_user, orphans).  Orphans are files whose user ID cannot be
     determined from either the sidecar or the name; they are reported rather
     than guessed at, since delivering one account's mail into another's
     mailbox is worse than leaving it on disk.
@@ -743,8 +745,9 @@ def cmd_flush(args) -> int:
         by_user, orphans = collect_spool(root, only_user)
 
         for path in orphans:
-            log.error(f"[FLUSH] Cannot tell which user {path.name} belongs to; "
-                      "leaving it in place (rename it u<USER>-... to route it)")
+            log.error("[FLUSH] Cannot tell which user %s belongs to; leaving" +
+                      " it in place. (Rename it u<USER>-... to route it)",
+                      path.name)
 
         if not by_user:
             if not orphans:
@@ -752,24 +755,24 @@ def cmd_flush(args) -> int:
             return EX_TEMPFAIL if orphans else 0
 
         total = sum(len(items) for items in by_user.values())
-        log.warning(f"[FLUSH] {total} spooled message(s) in {root} "
-                    f"for user(s) {', '.join(str(u) for u in sorted(by_user))}")
+        log.warning("[FLUSH] %d spooled message(s) in %s for user(s) %s",
+                    total, root, ','.join(str(u) for u in sorted(by_user)))
 
         remaining = len(orphans)
         for user_id in sorted(by_user):
             items = by_user[user_id]
-            log.warning(f"[FLUSH] user {user_id}: {len(items)} message(s)")
+            log.warning("[FLUSH] user %d: %d message(s)", user_id, len(items))
 
             # A broken token for one account must not stall the others.
             try:
                 service = connect(args, user_id)
             except AuthUnavailable as exc:
-                log.error(f"[FLUSH] user {user_id}: {exc}")
+                log.error("[FLUSH] user %d: %s", user_id, exc)
                 remaining += len(items)
                 continue
             except Exception as exc:
-                log.error(f"[FLUSH] user {user_id}: authentication failed: "
-                          f"{_short(exc)}")
+                log.error("[FLUSH] user %d: authentication failed: %s",
+                          user_id, _short(exc))
                 remaining += len(items)
                 continue
 
@@ -777,7 +780,7 @@ def cmd_flush(args) -> int:
                 try:
                     raw = path.read_bytes()
                 except OSError as exc:
-                    log.error(f"[ERROR] Cannot read {path}: {exc}")
+                    log.error("[ERROR] Cannot read %s: %s", path, exc)
                     remaining += 1
                     continue
                 try:
@@ -788,16 +791,17 @@ def cmd_flush(args) -> int:
                     meta["attempts"] = int(meta.get("attempts", 0)) + 1
                     meta["last_error"] = _short(exc)
                     _write_sidecar(path, meta)
-                    log.error(f"[FLUSH] user {user_id}: still failing: "
-                              f"{path.name}: {_short(exc)}")
+                    log.error("[FLUSH] user %d: still failing: %s: %s",
+                              user_id, path.name, _short(exc))
                     continue
-                log.warning(f"[FLUSH] user {user_id}: delivered {path.name} "
-                            f"as {result.get('id')}")
+                log.warning("[FLUSH] user %d: delivered %s as %s", user_id,
+                            path.name, result.get('id'))
                 _unlink(_sidecar(path))
                 _unlink(path)
 
         if remaining:
-            log.error(f"[FLUSH] {remaining} message(s) remain spooled in {root}")
+            log.error("[FLUSH] %d message(s) remain spooled in %s",
+                      remaining, root)
             return EX_TEMPFAIL
         return 0
     finally:
@@ -819,7 +823,7 @@ def cmd_deliver(args) -> int:
     try:
         raw_input_bytes = sys.stdin.buffer.read()
     except OSError as exc:
-        log.error(f"[ERROR] Could not read stdin: {exc}")
+        log.error("[ERROR] Could not read stdin: %s", exc)
         return EX_TEMPFAIL
 
     messages = split_mbox(raw_input_bytes)
@@ -827,14 +831,14 @@ def cmd_deliver(args) -> int:
         log.error("[ERROR] No messages found in input.")
         return 1
 
-    log.info(f"[INFO] Parsed {len(messages)} message(s).\n")
+    log.info("[INFO] Parsed %d message(s).\n", len(messages))
 
     # --- Summarise what was parsed ------------------------------------------
     summaries = [describe(raw) for raw in messages]
     for i, info in enumerate(summaries, start=1):
-        log.info(f"  [{i}] From   : {info['from']}")
-        log.info(f"       Subject: {info['subject']}")
-        log.info(f"       Date   : {info['date']}")
+        log.info("  [%d] From   : %s", i, info['from'])
+        log.info("       Subject: %s", info['subject'])
+        log.info("       Date   : %s", info['date'])
     log.info("")
 
     # --- Authenticate -------------------------------------------------------
@@ -847,10 +851,10 @@ def cmd_deliver(args) -> int:
         service = connect(args, user_id)
     except AuthUnavailable as exc:
         auth_error = exc
-        log.error(f"[ERROR] {exc}")
+        log.error("[ERROR] %s", exc)
     except Exception as exc:
         auth_error = exc
-        log.error(f"[ERROR] Authentication failed: {_short(exc)}")
+        log.error("[ERROR] Authentication failed: %s", _short(exc))
 
     # --- Insert each message ------------------------------------------------
     results = []
@@ -872,12 +876,12 @@ def cmd_deliver(args) -> int:
         if result is not None:
             inserted += 1
             results.append({"status": "ok", **result})
-            log.info(f"[OK] Message {i} inserted")
-            log.info(f"     Subject   : {subject}")
-            log.info(f"     Message ID: {result['id']}")
+            log.info("[OK] Message %d inserted", i)
+            log.info("     Subject   : %s", subject)
+            log.info("     Message ID: %s", result['id'])
             continue
 
-        log.error(f"[ERROR] Message {i} failed: {_short(exc)}")
+        log.error("[ERROR] Message %d failed: %s", i, _short(exc))
 
         if args.on_failure == "tempfail":
             lost += 1
@@ -894,20 +898,22 @@ def cmd_deliver(args) -> int:
             results.append({"status": "spooled", "subject": subject,
                             "user": user_id, "spool_file": str(path),
                             "error": str(exc)})
-            log.error(f"[SPOOL] Message {i} for user {user_id} parked at {path} "
-                      f"- run 'gmail_insert.py --flush' to retry")
+            log.error("[SPOOL] Message %d for user %d parked at %s " +
+                      "- run 'gmail_insert.py --flush' to retry",
+                      i, user_id, path)
         except SpoolError as spool_exc:
             lost += 1
             results.append({"status": "error", "subject": subject,
                             "error": f"{exc} / spool failed: {spool_exc}"})
-            log.error(f"[FATAL] Message {i} could not be spooled: {spool_exc}")
+            log.error("[FATAL] Message %d could not be spooled: {spool_exc}",
+                      i, spool_exc)
             log.error("[FATAL] Exiting EX_TEMPFAIL so the message is requeued.")
 
     # --- Summary ------------------------------------------------------------
-    log.info(f"[DONE] Inserted {inserted} of {len(messages)} message(s).")
+    log.info("[DONE] Inserted %d of %d message(s).", inserted, len(messages))
     if spooled:
-        log.warning(f"[DONE] Spooled {spooled} message(s) for user {user_id} "
-                    f"to {args.spool_dir}.")
+        log.warning("[DONE] Spooled i%d message(s) for user %d to %s.",
+                    spooled, user_id, args.spool_dir)
     if inserted:
         log.info("       Open Gmail in your browser to see them.")
 
