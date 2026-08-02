@@ -25,4 +25,4 @@ jobs:
       # No install step on purpose: the suite stubs the Google client
       # libraries, so a regression run needs nothing but the interpreter.
       - name: Run the regression suite
-        run: python3 gmail_insert.py -h
+        run: ppython3 tests/run_tests.py
