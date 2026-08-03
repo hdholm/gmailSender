@@ -23,6 +23,7 @@ written so that a message is *never* dropped on the floor:
 
 Usage:
     python3 gmail_insert.py < single_message.mbox
+    python3 gmail-insert.py --mbox < multiple_message.mbox
     cat archive.mbox | python3 gmail_insert.py
     python3 gmail_insert.py --flush          # drain the spool, all users
     python3 gmail_insert.py --flush --user 2 # drain user 2's spool only
@@ -34,6 +35,7 @@ Options:
                       limits the run to that one account
     --auth            Run the interactive OAuth flow and exit
     --flush           Re-attempt delivery of spooled messages and exit
+    --mbox            Take potentially multiple mbox formatted messages
     --spool-dir DIR   Where undeliverable messages are parked
     --on-failure      spool (default) or tempfail
     (see --help for the retry tuning knobs)
@@ -230,13 +232,26 @@ def split_mbox(raw: bytes) -> list[bytes]:
     """
     Split raw mbox bytes into per-message chunks.
 
-    Eventually handle two cases:
-      1. Proper mbox with one or more "From " separator lines. (Still TBD.)
+    Handles two cases (only invoked when --mbox given):
+      1. Proper mbox with one or more "From " separator lines.
       2. A bare RFC-2822 message with no "From " line (single message).
     """
-    if not raw.strip():
-        return []
-    return [raw]
+    if raw.startswith(b"From "):
+        messages = []
+        m_start = raw.rfind(b'\nFrom ')
+        m_end = len(raw) - 1
+        while m_start != -1:
+            log.debug("[INFO] Found message at %d - %d: %s", m_start, m_end,
+                      raw[m_start+1:m_start+20])
+            messages.append(raw[m_start+1:m_end])
+            m_end = m_start
+            m_start = raw.rfind(b'\nFrom ', 0 , m_end)
+        messages.append(raw[:m_end])
+        log.debug("[INFO] Found message at %d - %d: %s", m_start, m_end,
+                  raw[:20])
+        return messages
+    else:
+        return [raw]
 
 
 def parse_headers(raw: bytes) -> EmailMessage:
@@ -555,6 +570,7 @@ Examples:
   python3 gmail_insert.py < message.mbox
   cat archive.mbox | python3 gmail_insert.py
   python3 gmail_insert.py --debug --user 2 < message.mbox
+  python3 gmail_insert.py --mbox < multiple_message.mbox
   python3 gmail_insert.py --json < message.mbox | jq .
   python3 gmail_insert.py --auth --user 2          # one-time authorisation
   python3 gmail_insert.py --flush                  # drain every user (cron)
@@ -597,6 +613,11 @@ Exit codes:
         help="Re-attempt delivery of spooled messages, then exit.  Every "
              "account is flushed with its own saved credentials unless "
              "--user is given",
+    )
+    p.add_argument(
+        "--mbox",
+        action="store_true",
+        help="Allow multiple messages in mbox format in the input stream"
     )
     p.add_argument(
         "--credentials",
@@ -818,10 +839,13 @@ def cmd_deliver(args) -> int:
         log.error("[ERROR] Could not read stdin: %s", exc)
         return EX_TEMPFAIL
 
-    messages = split_mbox(raw_input_bytes)
-    if not messages:
+    if not raw_input_bytes.strip():
         log.error("[ERROR] No messages found in input.")
         return 1
+    if args.mbox:
+        messages = split_mbox(raw_input_bytes)
+    else:
+        messages = [raw_input_bytes]
 
     log.info("[INFO] Parsed %d message(s).\n", len(messages))
 
