@@ -87,7 +87,7 @@ from googleapiclient.errors import HttpError
 # ---------------------------------------------------------------------------
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.insert"]
-CREDENTIALS_FILE = "credentials.json"   # OAuth2 client secret downloaded from GCP
+CREDENTIALS_FILE = "credentials.json" # OAuth2 client secret downloaded from GCP
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -198,7 +198,9 @@ def get_gmail_service(cred_id: str, *, interactive: bool = False,
                     "Download OAuth 2.0 credentials from the Google Cloud "
                     "Console and save them there."
                 )
-            flow = InstalledAppFlow.from_client_secrets_file(str(cred_file), SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                    str(cred_file), SCOPES
+                    )
             creds = flow.run_local_server(port=0)
         else:
             raise AuthUnavailable(
@@ -267,7 +269,7 @@ def describe(raw: bytes) -> dict:
             "date": str(msg.get("Date", "(no date)")),
             "message-id": str(msg.get("Message-ID", "")),
         }
-    except Exception as exc:                 # malformed mail must still deliver
+    except Exception as exc:                # malformed mail must still deliver
         log.warning("[WARN] Could not parse headers: %s", exc)
         return {"from": "(unparsed)", "subject": "(unparsed)",
                 "date": "", "message-id": ""}
@@ -277,22 +279,12 @@ def describe(raw: bytes) -> dict:
 # Gmail insert (using the import API to get scanning and classification)
 # ---------------------------------------------------------------------------
 
-def message_to_raw(raw: bytes) -> str:
-    """
-    Base64url-encode a message for the Gmail API.
-
-    The bytes read from stdin are forwarded verbatim (minus the mbox
-    envelope line) rather than round-tripped through EmailMessage.as_bytes():
-    re-serialising can rewrite headers, break DKIM signatures and, on
-    unusual input, raise - which used to lose the message.
-    """
-    return base64.urlsafe_b64encode(strip_envelope(raw)).decode("utf-8")
-
-
 def insert_message(service, raw: bytes) -> dict:
     """Insert a single message into the authenticated user's mailbox."""
     body = {
-        "raw":      message_to_raw(raw),
+        "raw":      base64.urlsafe_b64encode(
+            strip_envelope(raw)).decode("utf-8"
+                                        ),
         "labelIds": ["INBOX", "UNREAD"],
     }
     return (
@@ -330,7 +322,7 @@ def retry_after(exc: BaseException) -> float | None:
     try:
         return max(0.0, float(value))
     except (TypeError, ValueError):
-        return None                          # HTTP-date form: fall back to backoff
+        return None                      # HTTP-date form: fall back to backoff
 
 
 def is_retryable(exc: BaseException) -> bool:
