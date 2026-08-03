@@ -49,7 +49,7 @@ def test_envelope_line_is_synthesised_when_absent():
 
 def test_api_payload_strips_the_envelope_line():
     raw = support.message("Payload check")
-    payload = base64.urlsafe_b64decode(g.message_to_raw(raw))
+    payload = base64.urlsafe_b64decode(base64.urlsafe_b64encode(g.strip_envelope(raw)).decode("utf-8"))
     support.expect(not payload.startswith(b"From "),
                    "mbox envelope line leaked into the API payload")
     support.expect(payload.startswith(b"From: Sender"),

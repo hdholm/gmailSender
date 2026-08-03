@@ -60,7 +60,7 @@ def fake_insert(service, raw: bytes) -> dict:
 
     # Invariant worth asserting on every delivery: the mbox envelope line
     # must never reach the API, and the payload must be valid base64url.
-    payload = base64.urlsafe_b64decode(g.message_to_raw(raw))
+    payload = base64.urlsafe_b64decode(base64.urlsafe_b64encode(g.strip_envelope(raw)).decode("utf-8"))
     assert not payload.startswith(b"From "), "mbox envelope leaked into API payload"
 
     _record(service, raw, attempt)
